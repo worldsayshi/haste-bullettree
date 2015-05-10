@@ -1,0 +1,12 @@
+.cabal-sandbox
+node_modules
+lib/
+share/
+x86_64-osx-ghc-7.8.3-packages.conf.d/
+bin/
+packages/
+logs/
+*.o
+*.hi
+*.dyn_o
+*.dyn_hi
