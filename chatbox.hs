@@ -4,6 +4,8 @@
 --   program.
 import Haste.App
 import Haste.App.Concurrent
+import Haste.DOM
+import Haste.Events
 import qualified Control.Concurrent as C
 import Control.Monad
 import Control.Applicative
@@ -74,7 +76,7 @@ clientMain api = withElems ["name","message","chat"] $ \[name, msg, chat] -> do
          in awaitLoop backlog
 
   -- Send a message if the user hits return (charcode 13)
-  msg `onEvent` OnKeyDown $ \k -> do
+  msg `onEvent` KeyDown $ \k -> do
     case k of
       13 -> do
         m <- getProp msg "value"
@@ -90,7 +92,7 @@ main :: IO ()
 main = do
   -- Run the Haste.App application. Please note that a computation in the App
   -- monad should never contain any free variables.
-  runApp (mkConfig "ws://localhost:24601" 24601) $ do
+  runApp (mkConfig "localhost" 24601) $ do
     -- Create our state-holding elements
     state <- liftServerIO $ do
       clients <- newIORef []
