@@ -1,7 +1,7 @@
 
 all: editor editor.js
 
-sandbox: editor-sandox editor.js
+sandbox: editor-sandbox editor.js
 
 editor.js: editor.hs
 	hastec editor.hs
