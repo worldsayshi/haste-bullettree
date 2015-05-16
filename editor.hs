@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveGeneric, DeriveDataTypeable #-}
+{-# LANGUAGE DeriveGeneric, DeriveDataTypeable, CPP #-}
 import Haste.App
 import Haste.Events
 import Haste.DOM
@@ -12,11 +12,18 @@ import Lens.Family2
 import Control.Monad (void,forM_)
 import Control.Applicative
 
+
+
 import Prelude hiding (div)
 
 --import GHC.Generics (Generic)
 
 import EditorData
+
+
+import Store
+
+
 
 main :: IO ()
 main2 = do
@@ -63,25 +70,46 @@ main4 = do
           render xs
         in void $ withElem "root" $ build (render [1,2,3])
 
+
 main = do
   runApp (mkConfig "localhost" 24602) $ do
-    remoteTree <- liftServerIO $ C.newMVar (
-      Tree "Root" [Tree "Subtree" []
-                  ,Tree "another tree" [
-                                       Tree "more subs" []]])
+    remoteTree <- liftServerIO $ do
+      tree <- getTreeState
+      changedTrigger <- C.newMVar True
+      mtree <- C.newMVar tree
+      return (changedTrigger, mtree)
 
     trade <- remote $ \newTree -> do
 
-      tree <- remoteTree
+      (changedTrigger,tree) <- remoteTree
       liftIO $ do
+        print "putting"
 --        oldTree <- C.takeMVar tree
-        C.putMVar tree newTree
+        C.swapMVar tree newTree
+        print "put1"
+        C.swapMVar changedTrigger True
+        print "put2"
+        setTreeState newTree
+        
 --        return oldTree
 
-    getTree <- remote $ do
-      tree <- remoteTree
-      liftIO $ C.takeMVar tree
+    readTree <- remote $ do
+      (_,mtree) <- remoteTree
+      liftIO $ print "read"
+      res <- liftIO $ C.readMVar mtree
+      liftIO $ print "read2"
+      return res
+      
 
+    getTree <- remote $ do
+      liftIO $ print "1"
+      (changedTrigger,mtree) <- remoteTree
+      liftIO $ print "2"
+      liftIO $ C.takeMVar changedTrigger
+      res <- liftIO $ C.readMVar mtree
+      liftIO $ print "3"
+      return res
+      
 {-    changeTree <- remote $ \f -> do
       tree <- remoteTree
       liftIO $ do
@@ -91,8 +119,8 @@ main = do
         return oldTree
   -}
     runClient $ do
-
-      currentTree <- onServer $ getTree :: Client Tree
+      writeLog "fetching tree"
+      currentTree <- onServer $ readTree :: Client Tree
       writeLog ("gotTree: "++show currentTree)
 
       H.fork $ let
