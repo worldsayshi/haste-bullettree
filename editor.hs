@@ -26,50 +26,6 @@ import Store
 
 
 main :: IO ()
-main2 = do
-  runApp (mkConfig "localhost" 24602) $ do
-    runClient $ do
-      let
-        render :: [Int] -> Elem -> Client ()
-        render [] elem = return ()
-        render (x:xs) elem = do
-          el <- newElem "input"
-          onEvent el Change (\_ -> do
-                                 writeLog (show x)
-                             )
-          addChild el elem
-          render xs elem
-        in withElem "root" (render [1,2,3])
-
-main3 = do
-  runApp (mkConfig "localhost" 24602) $ do
-    runClient $ do
-      let
-        render :: [Int] -> Perch
-        render [] = return ()
-        render (x:xs) = do
-          input `addEvent` Change $ (\_ -> do
-                                 writeLog (show x)
-                             )
-          render xs
-        in void $ withElem "root" $ build (render [1,2,3])
-
-main4 = do
-  runApp (mkConfig "localhost" 24602) $ do
-    runClient $ do
-      let
-        render :: [Int] -> Perch
-        render [] = return ()
-        render (x:xs) = do
-          div $ do
-            input
-            addEvent this Change $ (\_ -> do
-                                 writeLog (show x)
-                             )
-
-          render xs
-        in void $ withElem "root" $ build (render [1,2,3])
-
 
 main = do
   runApp (mkConfig "localhost" 24602) $ do
