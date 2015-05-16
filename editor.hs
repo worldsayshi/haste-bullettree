@@ -5,7 +5,6 @@ import Haste.DOM
 import Haste.App.Perch
 import Haste.LocalStorage
 import qualified Haste.App.Concurrent as H
-import qualified Control.Concurrent as C
 
 import Lens.Family2
 
@@ -19,64 +18,19 @@ import Prelude hiding (div)
 --import GHC.Generics (Generic)
 
 import EditorData
-
-
-import Store
-
+import MemoryStore
 
 
 main :: IO ()
 
 main = do
   runApp (mkConfig "localhost" 24602) $ do
-    remoteTree <- liftServerIO $ do
-      tree <- getTreeState
-      changedTrigger <- C.newMVar True
-      mtree <- C.newMVar tree
-      return (changedTrigger, mtree)
 
-    trade <- remote $ \newTree -> do
-
-      (changedTrigger,tree) <- remoteTree
-      liftIO $ do
-        print "putting"
---        oldTree <- C.takeMVar tree
-        C.swapMVar tree newTree
-        print "put1"
-        C.swapMVar changedTrigger True
-        print "put2"
-        setTreeState newTree
-        
---        return oldTree
-
-    readTree <- remote $ do
-      (_,mtree) <- remoteTree
-      liftIO $ print "read"
-      res <- liftIO $ C.readMVar mtree
-      liftIO $ print "read2"
-      return res
+    store <- openStore
       
-
-    getTree <- remote $ do
-      liftIO $ print "1"
-      (changedTrigger,mtree) <- remoteTree
-      liftIO $ print "2"
-      liftIO $ C.takeMVar changedTrigger
-      res <- liftIO $ C.readMVar mtree
-      liftIO $ print "3"
-      return res
-      
-{-    changeTree <- remote $ \f -> do
-      tree <- remoteTree
-      liftIO $ do
-        oldTree <- C.takeMVar tree
-        let newTree = f oldTree
-        C.putMVar tree newTree
-        return oldTree
-  -}
     runClient $ do
       writeLog "fetching tree"
-      currentTree <- onServer $ readTree :: Client Tree
+      currentTree <- onServer $ getCurrentTree store :: Client Tree
       writeLog ("gotTree: "++show currentTree)
 
       H.fork $ let
@@ -84,23 +38,21 @@ main = do
           void $ withElem "root" $ \elem -> do
             clearChildren elem
             build (render currentTree currentTree []) elem
-          currentTree' <- onServer $ getTree :: Client Tree
+          currentTree' <- onServer $ getNextTree store :: Client Tree
           awaitLoop currentTree'
         render allTree tree ixs = do
           div $ do
             input
               ! atr "type" "text"
               ! atr "value" (tree ^. _text)
-              ! atr "data-index" (show ixs) `addEvent` Change $ \ev -> do
-                
-              
+              ! atr "data-index" (show ixs) `addEvent` Change $ \ev -> do              
 
               els <- elemsByQS document ("input[data-index=\""++show ixs++"\"]")
               forM_ els ( \el -> do
                         val <- getProp el "value"
                         let newTree = allTree & _textAt ixs .~ val
                         writeLog ("result: "++val)
-                        onServer $ trade <.> (newTree))
+                        onServer $ (setTree store) <.> (newTree))
             addEvent this KeyDown $ \keycode -> do
               if keycode == 9
                    --- Need to use haste master to allow preventDefault!
