@@ -90,11 +90,25 @@ _elem :: Int -> Traversal' [a] a
 _elem num f = changeAt num f -- undefined -- (\l -> )
 _elem' = [1,2,3] ^? _elem 2
 
+_last :: Traversal' [a] a
+_last f l = _elem (length l - 1) f l
+
+
+_init :: Traversal' [a] a
+_init f l = sequenceA $ (fmap f (init l)) ++ (fmap pure ([last l]))
+
 _textAt :: [Int] -> Traversal' Tree String
 _textAt [] = _text
 _textAt (num:nums) = _subtrees . (_elem num) . (_textAt nums)
 
 _textAt' = exampleValue ^? _textAt [1,0]
+
+_treeAt :: [Int] -> Traversal' Tree Tree
+_treeAt [] f t = f t
+_treeAt (num:nums) f t = (_subtrees . (_elem num) . (_treeAt nums)) f t
+
+_treeAt' = exampleValue ^? _treeAt [1,0]
+
 --_2text :: Traversal' Tree String
 --_2text num f = (\(Tree txt sub) -> Tree <$> (pure txt) <*> (sub))
 --_2text' =  exampleValue ^? _2text 1 -- Just "c"
