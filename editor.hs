@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveGeneric, DeriveDataTypeable, CPP #-}
+{-# LANGUAGE DeriveGeneric, DeriveDataTypeable, CPP, RankNTypes #-}
 import Haste.App
 import Haste.Events
 import Haste.DOM
@@ -19,7 +19,6 @@ import Prelude hiding (div,span)
 
 import EditorData
 import MemoryStore
-import Styling
 
 
 main :: IO ()
@@ -48,29 +47,31 @@ renderTree store allTree tree ixs = do
   div ! atr "class" "tree-container" $ do
     span ! atr "class" "bullet" $ "›"
     span ! atr "class" "input-wrapper" $ do
-      input
+      (((input
         ! atr "type" "text"
         ! atr "value" (tree ^. _text)
-        ! atr "data-index" (show ixs) `addEvent` Change $ \ev -> do
-
+        ! atr "data-index" (show ixs)
+        `addEvent`
+          Change $ \ev -> do
           els <- elemsByQS document ("input[data-index=\""++show ixs++"\"]")
           forM_ els (
             \el -> do
               val <- getProp el "value"
               let newTree = allTree & _textAt ixs .~ val
               writeLog ("result: "++val)
-              onServer $ (setTree store) <.> (newTree))
-    addEvent this KeyDown $ \keycode -> do
-      if keycode == 9
-           --- Need to use haste master to allow preventDefault!
-           -- Or maybe possible to just copy paste some of that code...
-        then do
-        liftIO $ preventDefault
-        writeLog "Tab!"
-        else writeLog $ "someOtherKey: " ++ show keycode
-    addEvent this KeyUp $ \keycode -> do
-      if keycode == 13
-        then writeLog "Enter!"
-        else writeLog $ "someOtherKey: " ++ show keycode
+              onServer $ (setTree store) <.> (newTree)))
+        `addEvent` KeyDown $ \keycode -> do
+          if keycode == 9
+             --- Need to use haste master to allow preventDefault!
+             -- Or maybe possible to just copy paste some of that code...
+            then do
+            liftIO $ preventDefault
+            writeLog "Tab!"
+            else writeLog $ "someOtherKey: " ++ show keycode)
+        `addEvent` KeyUp $ \keycode -> do
+          if keycode == 13
+            then writeLog "Enter!"
+            else writeLog $ "someOtherKey: " ++ show keycode)
     forM_ (zip [0..] (tree ^. _subtrees)) $ \(ix,subtree) -> do
       renderTree store allTree subtree (ixs++[ix])
+
