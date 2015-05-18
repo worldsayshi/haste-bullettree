@@ -11,7 +11,7 @@ import Store
 import Control.Concurrent.Event
 #endif
 #ifdef __HASTE__
-set = undefined
+signal = undefined
 new = undefined
 wait = undefined
 data Event = Event
@@ -46,7 +46,7 @@ openStore = do
 --        oldTree <- C.takeMVar $ stateMVar state
         C.modifyMVar_ (stateMVar state) (\_->return newTree)
         --C.swapMVar (stateMVar state) newTree
-        set $ trigger state
+        signal $ trigger state
         setTreeState newTree
 
   getCurrentTree' <- remote $ do
@@ -54,6 +54,7 @@ openStore = do
     liftIO $ C.readMVar (stateMVar state)
     
   getNextTree' <- remote $ do
+    liftIO $ print "getNextTree"
     state <- retrieveState
     liftIO $ do
       wait $ trigger state
