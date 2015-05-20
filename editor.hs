@@ -136,6 +136,10 @@ removeNodeAt tree ixs store = do
                   parentTree & _subtrees %~
                   (\trees ->
                     take fringeIx trees ++ drop (fringeIx+1) trees))
+  moveCursorUp tree ixs
   onServer $ (setTree store) <.> (newTree)
-  -- Todo check if sibling above
-  navTo parentIxs
+
+{-
+indentNode tree ixs store = do
+  let fringeIx = last ixs
+  case fringeIx-}
