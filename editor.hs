@@ -100,18 +100,22 @@ moveCursorUp tree ixs =
     _ -> return ()
 
 moveCursorDown tree ixs = do
-  let parentIxs = init ixs
-      parentNode = fromJust $ tree ^? _treeAt parentIxs
+  let findIxsNodeBelow tree [] = Nothing
+      findIxsNodeBelow tree ixs =
+        let parentIxs = init ixs
+            fringeIx = last ixs
+            thisIxs = (parentIxs ++ [fringeIx+1])
+            maybeNodeBelow  = tree ^? _treeAt thisIxs
+          in case maybeNodeBelow of
+          (Just node) -> Just thisIxs
+          Nothing -> findIxsNodeBelow tree parentIxs
       childIxs = ixs++[0]
       maybeChildNode = tree ^? _treeAt childIxs
-  -- check case where itself has children! Then navigate to the first?
-  case maybeChildNode of
+   in case maybeChildNode of
     Just childNode -> navTo childIxs
-    _ -> do
-      let n = last ixs :: Int
-      if n >= length (parentNode ^. _subtrees)
-        then navTo ((init parentIxs) ++ [(last parentIxs) + 1])
-        else navTo (init ixs ++ [n+1])
+    _ -> case findIxsNodeBelow tree ixs of
+      Just ixs' -> navTo ixs'
+      Nothing -> return ()
         
 insertNodeAfter tree ixs store = do
   let parentIxs = init ixs
