@@ -15,6 +15,7 @@ import Haste.App
 import GHC.Generics (Generic)
 
 import Data.Data
+import Data.Maybe
 import Data.Typeable
 import Data.Traversable (sequenceA)
 --import Data.Generics.Uniplate.Data
@@ -114,6 +115,13 @@ _treeAt' = exampleValue ^? _treeAt [1,0]
 --_2text' =  exampleValue ^? _2text 1 -- Just "c"
 
 
+-- Ref to the recursive last node of the last child or itself if no children
+_lastChild :: Traversal' Tree Tree
+_lastChild f tree = if isJust (tree ^? _subtrees . _last)
+                     then (_subtrees . _last . _lastChild) f tree
+                     else (id) f tree
+
+_lastChild' = exampleValue ^? _lastChild
 
 --_texts' f tree = transform f tree
 

@@ -3,11 +3,12 @@ module Main (main) where
 import Haste.App
 import Haste.Events
 import Haste.DOM
-import Haste.App.Perch
+import Haste.App.Perch hiding (id)
 import Haste.LocalStorage
 import qualified Haste.App.Concurrent as H
 
 import Lens.Family2
+import Lens.Family2.Stock
 
 import Control.Monad (void,forM_)
 import Control.Applicative
@@ -94,10 +95,17 @@ updateWithInputValue tree ixs store = do
 
 --moveCursorUp :: (MonadIO m, Functor m) => [Int] -> m ()
 moveCursorUp tree ixs =
-  case ixs ^? _last of
+  let findIxsNodeAbove tree ixs =
+        let subtrees = tree ^? _treeAt ixs . _subtrees
+        in case (subtrees ^? _Just . _last) of
+          (Just _) -> findIxsNodeAbove tree $ ixs ++ [(length $ fromJust $ subtrees) - 1]
+          Nothing -> ixs
+      parentIxs = init ixs
+  in case ixs ^? _last of
     (Just 0) -> navTo $ init ixs
-    (Just ix) -> navTo $ (init ixs) ++ [ix - 1]
+    (Just ix) -> navTo $ findIxsNodeAbove tree (parentIxs++[ix-1])
     _ -> return ()
+
 
 moveCursorDown tree ixs = do
   let findIxsNodeBelow tree [] = Nothing
