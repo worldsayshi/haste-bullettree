@@ -56,7 +56,7 @@ renderTree store allTree tree ixs = do
           Change $ \ev -> updateWithInputValue allTree ixs store)
         `addEvent` KeyDown $ \keycode -> do
            case keycode of
-             9 -> (liftIO preventDefault) >> writeLog "Tab!"
+             9 -> (liftIO preventDefault) >> indentNode allTree ixs store
              38 -> (liftIO preventDefault) >> moveCursorUp allTree ixs -- writeLog "Up arrow!"
              40 -> (liftIO preventDefault) >> moveCursorDown allTree ixs
              _ -> writeLog $ "KeyDown: " ++ show keycode) 
@@ -116,30 +116,64 @@ moveCursorDown tree ixs = do
 insertNodeAfter tree ixs store = do
   let parentIxs = init ixs
       fringeIx = last ixs
-      newTree = tree & _treeAt parentIxs %~
-                (\parentTree ->
-                  parentTree & _subtrees %~
-                  (\trees ->
-                    let nextIx = fringeIx + 1
-                    in take nextIx trees ++ [Tree "" []] ++ drop nextIx trees))
+      newTree = insert tree ixs (Tree "" [])
       newIxs = parentIxs ++ [fringeIx + 1]
   onServer $ (setTree store) <.> (newTree)
   -- This navTo should be scheduled to react to a rerended event?
   -- Timing problems can occur
   navTo newIxs
 
+insert tree ixs node =
+  let parentIxs = init ixs
+      fringeIx = last ixs
+  in tree & _treeAt parentIxs %~
+     (\parentTree ->
+       parentTree & _subtrees %~
+       (\trees ->
+         let nextIx = fringeIx + 1
+             -- Can just as well allow inserting a list of nodes
+         in take nextIx trees ++ [node] ++ drop nextIx trees))
+
+insertLast tree ixs node =
+  tree & _treeAt ixs %~
+  (\parentTree -> parentTree & _subtrees %~
+                  (\trees -> trees++[node]))
+
+pluck tree ixs =
+  let parentIxs = init ixs
+      fringeIx = last ixs
+  in
+   (tree & _treeAt parentIxs %~
+    (\parentTree ->
+      parentTree & _subtrees %~
+      (\trees ->
+        take fringeIx trees ++ drop (fringeIx+1) trees)),
+    tree ^? _treeAt ixs)
+
 removeNodeAt tree ixs store = do
   let parentIxs = init ixs
       fringeIx = last ixs
-      newTree = tree & _treeAt parentIxs %~
+      (newTree,_) = pluck tree ixs
+                    {-tree & _treeAt parentIxs %~
                 (\parentTree ->
                   parentTree & _subtrees %~
                   (\trees ->
-                    take fringeIx trees ++ drop (fringeIx+1) trees))
+                    take fringeIx trees ++ drop (fringeIx+1) trees))-}
   moveCursorUp tree ixs
   onServer $ (setTree store) <.> (newTree)
 
-{-
+deindentNode tree ixs store = do
+  undefined
+
 indentNode tree ixs store = do
-  let fringeIx = last ixs
-  case fringeIx-}
+  let parentIxs = init ixs
+      fringeIx = last ixs
+      newTree = fromJust $ case fringeIx of
+        0 -> return tree
+        n -> do
+          let (tree', mnode) = pluck tree ixs
+          node <- mnode
+          return $ insertLast tree' (parentIxs++[n-1]) node
+  onServer $ (setTree store) <.> (newTree)
+
+      
