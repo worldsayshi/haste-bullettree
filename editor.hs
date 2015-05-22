@@ -55,23 +55,29 @@ renderTree store allTree tree ixs = do
         ! atr "data-index" (show ixs)
         `addEvent`
           Change $ \ev -> updateWithInputValue allTree ixs store)
-        `addEvent` KeyDown $ \keycode -> do
-           case keycode of
-             9 -> (liftIO preventDefault) >> indentNode allTree ixs store
+        `addEvent` KeyDown $ \keydata -> do
+           writeLog $ "KeyDown: " ++ show keydata
+           case keyCode keydata of
+             9 -> (liftIO preventDefault)
+                  >> if keyShift keydata
+                     then deindentNode allTree ixs store
+                     else indentNode allTree ixs store
              38 -> (liftIO preventDefault) >> moveCursorUp allTree ixs -- writeLog "Up arrow!"
              40 -> (liftIO preventDefault) >> moveCursorDown allTree ixs
-             _ -> writeLog $ "KeyDown: " ++ show keycode) 
+             -- Todo check also if it has child trees. Then abort.
+             8 -> if allOf (_textAt ixs) (=="") allTree
+                  then (liftIO preventDefault) >> removeNodeAt allTree ixs store
+                  else return ()
+             _ -> return ())
             
-        `addEvent` KeyUp $ \keycode -> do
-          case keycode of
+        `addEvent` KeyUp $ \keydata -> do
+          writeLog $ "KeyUp: " ++ show keydata
+          case keyCode keydata of
+            9 -> (liftIO preventDefault)
             13 -> (liftIO preventDefault) >> insertNodeAfter allTree ixs store
             38 -> (liftIO preventDefault) >> writeLog "Up arrow!"
             40 -> (liftIO preventDefault) >> writeLog "Down arrow!"
-            -- Todo check also if it has child trees. Then abort.
-            8 -> if allOf (_textAt ixs) (=="") allTree
-                 then (liftIO preventDefault) >> removeNodeAt allTree ixs store
-                 else return ()
-            _  -> writeLog $ "KeyUp: " ++ show keycode)
+            _  -> return ())
     forM_ (zip [0..] (tree ^. _subtrees)) $ \(ix,subtree) -> do
       renderTree store allTree subtree (ixs++[ix])
 
@@ -180,12 +186,14 @@ deindentNode tree ixs store = do
 indentNode tree ixs store = do
   let parentIxs = init ixs
       fringeIx = last ixs
-      newTree = fromJust $ case fringeIx of
-        0 -> return tree
-        n -> do
-          let (tree', mnode) = pluck tree ixs
-          node <- mnode
-          return $ insertLast tree' (parentIxs++[n-1]) node
+      (newIxs, newTree) =
+        if fringeIx == 0
+        then (ixs, tree)
+        else (parentIxs++[fringeIx-1],
+              fromJust $ do
+                let (tree', mnode) = pluck tree ixs
+                node <- mnode
+                return $ insertLast tree' (parentIxs++[fringeIx-1]) node)
   onServer $ (setTree store) <.> (newTree)
-
+  navTo newIxs
       
