@@ -20,7 +20,8 @@ import Prelude hiding (div,span)
 --import GHC.Generics (Generic)
 
 import EditorData
-import MemoryStore
+import LocalStore
+import qualified MemoryStore as Mem
 
 
 main :: IO ()
@@ -28,11 +29,12 @@ main :: IO ()
 main = do
   runApp (mkConfig "localhost" 24602) $ do
 
-    store <- openStore
+    store <- Mem.openStore
 
     runClient $ do
+      cache <- localCache store
       writeLog "fetching tree"
-      currentTree <- onServer $ getCurrentTree store :: Client Tree
+      currentTree <- getCurrentTree cache -- onServer $ getCurrentTree store :: Client Tree
       writeLog ("gotTree: "++show currentTree)
 
       H.fork $ let
@@ -40,12 +42,12 @@ main = do
           void $ withElem "editorRoot" $ \elem -> do
             clearChildren elem
             build (render currentTree currentTree []) elem
-          currentTree' <- onServer $ getNextTree store :: Client Tree
+          currentTree' <- getNextTree cache -- onServer $ getNextTree store :: Client Tree
           awaitLoop currentTree'
-        render = renderTree store
+        render = renderTree cache
         in awaitLoop currentTree
 
-renderTree store allTree tree ixs = do
+renderTree cache allTree tree ixs = do
   div ! atr "class" "tree-container" $ do
     span ! atr "class" "bullet" $ "›"
     span ! atr "class" "input-wrapper" $ do
@@ -54,19 +56,19 @@ renderTree store allTree tree ixs = do
         ! atr "value" (tree ^. _text)
         ! atr "data-index" (show ixs)
         `addEvent`
-          Change $ \ev -> updateWithInputValue allTree ixs store)
+          Change $ \ev -> updateWithInputValue allTree ixs cache)
         `addEvent` KeyDown $ \keydata -> do
            writeLog $ "KeyDown: " ++ show keydata
            case keyCode keydata of
              9 -> (liftIO preventDefault)
                   >> if keyShift keydata
-                     then deindentNode allTree ixs store
-                     else indentNode allTree ixs store
+                     then deindentNode allTree ixs cache
+                     else indentNode allTree ixs cache
              38 -> (liftIO preventDefault) >> moveCursorUp allTree ixs -- writeLog "Up arrow!"
              40 -> (liftIO preventDefault) >> moveCursorDown allTree ixs
              -- Todo check also if it has child trees. Then abort.
              8 -> if allOf (_textAt ixs) (=="") allTree
-                  then (liftIO preventDefault) >> removeNodeAt allTree ixs store
+                  then (liftIO preventDefault) >> removeNodeAt allTree ixs cache
                   else return ()
              _ -> return ())
             
@@ -74,12 +76,12 @@ renderTree store allTree tree ixs = do
           writeLog $ "KeyUp: " ++ show keydata
           case keyCode keydata of
             9 -> (liftIO preventDefault)
-            13 -> (liftIO preventDefault) >> insertNodeAfter allTree ixs store
+            13 -> (liftIO preventDefault) >> insertNodeAfter allTree ixs cache
             38 -> (liftIO preventDefault) >> writeLog "Up arrow!"
             40 -> (liftIO preventDefault) >> writeLog "Down arrow!"
             _  -> return ())
     forM_ (zip [0..] (tree ^. _subtrees)) $ \(ix,subtree) -> do
-      renderTree store allTree subtree (ixs++[ix])
+      renderTree cache allTree subtree (ixs++[ix])
 
 
 {-- ACTIONS --}
@@ -90,16 +92,19 @@ navTo ixs = do
   elem:[] <- elemsByQS documentBody $ "input[data-index=\""++show ixs++"\"]"
   focus elem
 
-updateWithInputValue tree ixs store = do
+updateWithInputValue tree ixs cache = do
   els <- elemsByQS document ("input[data-index=\""++show ixs++"\"]")
   forM_ els (
     \el -> do
       val <- getProp el "value"
       let newTree = tree & _textAt ixs .~ val
       writeLog ("result: "++val)
-      onServer $ (setTree store) <.> (newTree))
+      setTree cache newTree)
+
+      -- onServer $ (setTree store) <.> (newTree))
 
 --moveCursorUp :: (MonadIO m, Functor m) => [Int] -> m ()
+      
 moveCursorUp tree ixs =
   let findIxsNodeAbove tree ixs =
         let subtrees = tree ^? _treeAt ixs . _subtrees
@@ -131,12 +136,12 @@ moveCursorDown tree ixs = do
       Just ixs' -> navTo ixs'
       Nothing -> return ()
         
-insertNodeAfter tree ixs store = do
+insertNodeAfter tree ixs cache = do
   let parentIxs = init ixs
       fringeIx = last ixs
       newTree = insert tree ixs (Tree "" [])
       newIxs = parentIxs ++ [fringeIx + 1]
-  onServer $ (setTree store) <.> (newTree)
+  setTree cache tree -- onServer $ (setTree store) <.> (newTree)
   -- This navTo should be scheduled to react to a rerended event?
   -- Timing problems can occur
   navTo newIxs
@@ -168,7 +173,7 @@ pluck tree ixs =
         take fringeIx trees ++ drop (fringeIx+1) trees)),
     tree ^? _treeAt ixs)
 
-removeNodeAt tree ixs store = do
+removeNodeAt tree ixs cache = do
   let parentIxs = init ixs
       fringeIx = last ixs
       (newTree,_) = pluck tree ixs
@@ -178,12 +183,13 @@ removeNodeAt tree ixs store = do
                   (\trees ->
                     take fringeIx trees ++ drop (fringeIx+1) trees))-}
   moveCursorUp tree ixs
-  onServer $ (setTree store) <.> (newTree)
+  setTree cache newTree
+--  onServer $ (setTree store) <.> (newTree)
 
-deindentNode tree ixs store = do
+deindentNode tree ixs cache = do
   undefined
 
-indentNode tree ixs store = do
+indentNode tree ixs cache = do
   let parentIxs = init ixs
       fringeIx = last ixs
       (newIxs, newTree) =
@@ -194,6 +200,7 @@ indentNode tree ixs store = do
                 let (tree', mnode) = pluck tree ixs
                 node <- mnode
                 return $ insertLast tree' (parentIxs++[fringeIx-1]) node)
-  onServer $ (setTree store) <.> (newTree)
+  setTree cache newTree
+    -- onServer $ (setTree store) <.> (newTree)
   navTo newIxs
       
