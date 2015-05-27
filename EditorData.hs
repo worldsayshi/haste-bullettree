@@ -13,21 +13,20 @@ import Data.Data
 import Data.Maybe
 import Data.Typeable
 import Data.Traversable (sequenceA)
---import Data.Generics.Uniplate.Data
---import Data.Generics.Uniplate
 
-data Tree = Tree {
-  text :: String,
-  subtrees :: [Tree]
+
+data TreeFrame a = Tree {
+  node :: a,
+  subtrees :: [TreeFrame a]
   } deriving (Show,Eq,Read,Generic, Data, Typeable) --,Read,Generic)
 
-_subtrees :: Lens' Tree [Tree]
+_subtrees :: Lens' (TreeFrame a) [TreeFrame a]
 _subtrees f (Tree txt subt) = (\subt' -> Tree txt subt') `fmap` (f subt)
 
 -- _text' = exampleValue ^. _text
 _subtrees' = exampleValue ^. _subtrees
 
-instance Binary Tree
+instance Binary a => Binary (TreeFrame a)
 
 -- Why is this not in the prelude??
 (!!?) ::  [a] -> Int -> Maybe a
@@ -58,9 +57,13 @@ changeAt num f l =
 
 changeAt' = changeAt 2 (\i -> Just (-i)) [1,2,3]
 
-_text :: Traversal' Tree String
-_text f = (\(Tree txt sub) -> Tree <$> (f txt) <*> (pure sub))
+_node :: Traversal' (TreeFrame a) a
+_node f = (\(Tree nd sub) -> Tree <$> (f nd) <*> (pure sub))
+
+_text :: Traversal' (Tree) String
+_text = _node
 _text' = exampleValue ^? _text
+
 _elem :: Int -> Traversal' [a] a
 _elem num f = changeAt num f -- undefined -- (\l -> )
 _elem' = [1,2,3] ^? _elem 2
@@ -72,13 +75,13 @@ _last f l = _elem (length l - 1) f l
 _init :: Traversal' [a] a
 _init f l = sequenceA $ (fmap f (init l)) ++ (fmap pure ([last l]))
 
-_textAt :: [Int] -> Traversal' Tree String
+_textAt :: [Int] -> Traversal' (Tree) String
 _textAt [] = _text
 _textAt (num:nums) = _subtrees . (_elem num) . (_textAt nums)
 
 _textAt' = exampleValue ^? _textAt [1,0]
 
-_treeAt :: [Int] -> Traversal' Tree Tree
+_treeAt :: [Int] -> Traversal' (Tree) (Tree)
 _treeAt [] f t = f t
 _treeAt (num:nums) f t = (_subtrees . (_elem num) . (_treeAt nums)) f t
 
@@ -86,7 +89,7 @@ _treeAt' = exampleValue ^? _treeAt [1,0]
 
 
 -- Ref to the recursive last node of the last child or itself if no children
-_lastChild :: Traversal' Tree Tree
+_lastChild :: Traversal' (Tree) (Tree)
 _lastChild f tree = if isJust (tree ^? _subtrees . _last)
                      then (_subtrees . _last . _lastChild) f tree
                      else (id) f tree
@@ -95,7 +98,9 @@ _lastChild' = exampleValue ^? _lastChild
 
 
 
+-- | Modifications
 
+type Tree = TreeFrame String
 
 
 

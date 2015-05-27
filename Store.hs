@@ -14,7 +14,7 @@ import Data.Typeable
 import Control.Monad.State                   ( get, put )
 import Control.Monad.Reader                  ( ask )
 
-$(deriveSafeCopy 0 'base ''Tree)
+$(deriveSafeCopy 0 'base ''TreeFrame)
 
 getTreeStateInt :: Query Tree Tree
 getTreeStateInt = ask
@@ -22,12 +22,12 @@ getTreeStateInt = ask
 setTreeStateInt :: Tree -> Update Tree ()
 setTreeStateInt = put
   
-$(makeAcidic ''Tree ['getTreeStateInt, 'setTreeStateInt])
+$(makeAcidic ''TreeFrame ['getTreeStateInt, 'setTreeStateInt])
 
 
 getTreeState = do
   acid <- openLocalState (Tree "root" []) -- exampleValue
-  tree <- query acid GetTreeStateInt
+  tree :: Tree <- query acid GetTreeStateInt
   closeAcidState acid
   return tree
   
