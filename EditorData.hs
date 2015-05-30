@@ -13,20 +13,64 @@ import Data.Data
 import Data.Maybe
 import Data.Typeable
 import Data.Traversable (sequenceA)
+import Data.Unique
+import Control.Applicative
 
 
-data TreeFrame a = Tree {
+data TreeGraph node tree =
+  TreeGraph node [tree]
+  deriving (Show, Generic, Data, Typeable)
+
+type Id = Int
+
+data Node = Node {
+  nId :: Id,
+  text :: String
+  } deriving (Show, Generic, Data, Typeable)
+
+data Tree =
+  Tree (TreeGraph Node Tree)
+  deriving (Show, Generic, Data, Typeable)
+
+instance (Binary n, Binary t) => Binary (TreeGraph n t) where
+  put (TreeGraph node trees) = put node >> put trees
+  get = do
+    node <- get
+    trees <- get
+    return $ TreeGraph node trees
+instance Binary Node
+instance Binary Tree
+
+exampleValue :: IO Tree
+exampleValue = 
+  tree "a" =<< (sequence
+    [ tree "b" []
+    , tree "c" =<< (sequence 
+       [tree "d" []
+       ])
+    ])
+
+tree :: String -> [Tree] -> IO Tree
+tree txt subt = do
+  nId <- hashUnique <$> newUnique
+  return (Tree (TreeGraph (Node nId txt) subt))
+
+tree' :: Id -> String -> [Tree] -> Tree
+tree' nId txt subt = (Tree (TreeGraph (Node nId txt) subt))
+{-
+data Tree a = Tree {
   node :: a,
   subtrees :: [TreeFrame a]
   } deriving (Show,Eq,Read,Generic, Data, Typeable) --,Read,Generic)
-
-_subtrees :: Lens' (TreeFrame a) [TreeFrame a]
-_subtrees f (Tree txt subt) = (\subt' -> Tree txt subt') `fmap` (f subt)
+-}
+_subtrees :: Lens' (Tree) [Tree]
+_subtrees f (Tree (TreeGraph (Node nId txt) subt)) =
+  (\subt' -> tree' nId txt subt') `fmap` (f subt)
 
 -- _text' = exampleValue ^. _text
-_subtrees' = exampleValue ^. _subtrees
-
-instance Binary a => Binary (TreeFrame a)
+_subtrees' = do
+  exampleValue' <- exampleValue
+  return $ exampleValue' ^. _subtrees
 
 -- Why is this not in the prelude??
 (!!?) ::  [a] -> Int -> Maybe a
@@ -36,14 +80,6 @@ instance Binary a => Binary (TreeFrame a)
 
 foldrWithId f = foldr f id 
 
-exampleValue =
-  Tree "a"
-    [ Tree "b" []
-    , Tree "c"
-       [Tree "d"
-         []
-       ]
-    ]
 
 
 changeAt num f l =
@@ -55,18 +91,20 @@ changeAt num f l =
         else (num',pure elem)) $ zip [0..] l
 
 
-changeAt' = changeAt 2 (\i -> Just (-i)) [1,2,3]
+changeAt' = changeAt (2::Int) (\i -> Just (-i)) [1,2,(3::Int)]
 
-_node :: Traversal' (TreeFrame a) a
-_node f = (\(Tree nd sub) -> Tree <$> (f nd) <*> (pure sub))
+-- _node :: Traversal' (Tree) a
+-- _node f = (\(Tree nd sub) -> Tree <$> (f nd) <*> (pure sub))
 
 _text :: Traversal' (Tree) String
-_text = _node
-_text' = exampleValue ^? _text
+_text f = (\(Tree (TreeGraph (Node nId txt) subt)) -> tree' <$> (pure nId) <*> (f txt) <*> (pure subt))
+_text' = do
+  exampleValue' <- exampleValue
+  return $ exampleValue' ^? _text
 
 _elem :: Int -> Traversal' [a] a
 _elem num f = changeAt num f -- undefined -- (\l -> )
-_elem' = [1,2,3] ^? _elem 2
+_elem' = [(1::Int),2,3] ^? _elem 2
 
 _last :: Traversal' [a] a
 _last f l = _elem (length l - 1) f l
@@ -79,13 +117,17 @@ _textAt :: [Int] -> Traversal' (Tree) String
 _textAt [] = _text
 _textAt (num:nums) = _subtrees . (_elem num) . (_textAt nums)
 
-_textAt' = exampleValue ^? _textAt [1,0]
+_textAt' = do
+  exampleValue' <- exampleValue
+  return $ exampleValue' ^? _textAt [1,0]
 
 _treeAt :: [Int] -> Traversal' (Tree) (Tree)
 _treeAt [] f t = f t
 _treeAt (num:nums) f t = (_subtrees . (_elem num) . (_treeAt nums)) f t
 
-_treeAt' = exampleValue ^? _treeAt [1,0]
+_treeAt' = do
+  exampleValue' <- exampleValue
+  return $ exampleValue' ^? _treeAt [1,0]
 
 
 -- Ref to the recursive last node of the last child or itself if no children
@@ -94,13 +136,13 @@ _lastChild f tree = if isJust (tree ^? _subtrees . _last)
                      then (_subtrees . _last . _lastChild) f tree
                      else (id) f tree
 
-_lastChild' = exampleValue ^? _lastChild
+
+_lastChild' = do
+  exampleValue' <- exampleValue
+  return $ exampleValue' ^? _lastChild
 
 
 
--- | Modifications
-
-type Tree = TreeFrame String
 
 
 

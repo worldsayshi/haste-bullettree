@@ -17,6 +17,10 @@ import Data.Maybe (fromJust)
 
 import Prelude hiding (div,span)
 
+
+
+
+
 --import GHC.Generics (Generic)
 
 import EditorData
@@ -139,7 +143,7 @@ moveCursorDown tree ixs = do
 insertNodeAfter tree ixs cache = do
   let parentIxs = init ixs
       fringeIx = last ixs
-      newTree = insert tree ixs (Tree "" [])
+      --newTree = insert tree ixs (Tree "" [])
       newIxs = parentIxs ++ [fringeIx + 1]
   setTree cache tree -- onServer $ (setTree store) <.> (newTree)
   -- This navTo should be scheduled to react to a rerended event?
