@@ -11,22 +11,24 @@ sudo /usr/local/haskell/ghc-7.8.3-x86_64/bin/activate-hs
 
 apt-get install -y libgmp-dev libz-dev libbz2-dev git inotify-tools nodejs npm
 
-ln -s /usr/bin/nodejs /usr/bin/node
+ln -fs /usr/bin/nodejs /usr/bin/node
 
 
-cabal update
-cabal install cabal cabal-install
+su - vagrant -c 'cabal update'
+su - vagrant -c 'cabal install cabal cabal-install'
 
 cd /home/vagrant
 echo 'export PATH=/home/vagrant/.cabal/bin:$PATH' > .bash_profile
 
-git clone https://github.com/valderman/haste-compiler.git
-git clone https://github.com/worldsayshi/haste-perch.git
+rm -rf haste-compiler
+rm -rf haste-perch
+su - vagrant -c 'git clone https://github.com/valderman/haste-compiler.git'
+su - vagrant -c 'git clone https://github.com/worldsayshi/haste-perch.git'
 
-cabal install ./haste-compiler ./haste-perch
+su - vagrant -c 'cabal install ./haste-compiler ./haste-perch'
 cd haste-compiler
-haste-boot --force --local
+su - vagrant -c 'haste-boot --force --local'
 
 cd ../haste-perch
-haste-cabal install
-haste-cabal install lens-family
+su - vagrant -c 'haste-cabal install'
+su - vagrant -c 'haste-cabal install lens-family'
